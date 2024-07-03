@@ -10,10 +10,16 @@ import (
 
 	"github.com/golang/snappy"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/sq325/remoteWriteClient/prompb"
+	"github.com/sq325/remoteWrite/prompb"
 	"google.golang.org/protobuf/proto"
 )
 
+// A RemoteWrite is a remote write sender
+type RemoteWriteSender interface {
+	Write(series []*prompb.TimeSeries) error
+}
+
+// Client implement RemoteWrite interface
 type Client struct {
 	url    string
 	client *http.Client

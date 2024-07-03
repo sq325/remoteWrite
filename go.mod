@@ -1,4 +1,4 @@
-module github.com/sq325/remoteWriteClient
+module github.com/sq325/remoteWrite
 
 go 1.22.1
 
