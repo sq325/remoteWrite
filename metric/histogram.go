@@ -18,7 +18,8 @@ var (
 	defaultBuckets = []float64{25, 50, 75, 100, 200, 500, 1000, math.Inf(1)}
 )
 
-type histogramInterface interface {
+type HistogramMeter interface {
+	PBMetric
 	Observe(lvs []string, value float64)
 	Name() string
 	TimeSeries() []*prompb.TimeSeries
@@ -26,15 +27,14 @@ type histogramInterface interface {
 	LabelValues() [][]string
 }
 
-// PbHistogram wraps a prometheus.CounterVec
-type PbHistogram struct {
-	PbMetric
-
+// PBHistogram wraps a prometheus.CounterVec
+// PBHistogram implements PBCounterMeter interface
+type PBHistogram struct {
 	vec     *Vec      // bucket_label must be included in end of labels
 	buckets []float64 // must sorted by ascending
 }
 
-func NewPbHistogram(name string, help string, labels []string, buckets []float64) *PbHistogram {
+func NewPBHistogram(name string, help string, labels []string, buckets []float64) *PBHistogram {
 	if len(buckets) == 0 {
 		buckets = defaultBuckets
 	}
@@ -59,17 +59,17 @@ func NewPbHistogram(name string, help string, labels []string, buckets []float64
 		},
 	)
 
-	return &PbHistogram{
+	return &PBHistogram{
 		vec:     vec,
 		buckets: buckets,
 	}
 }
 
-func (hg *PbHistogram) Name() string {
+func (hg *PBHistogram) Name() string {
 	return hg.vec.Name()
 }
 
-func (hg *PbHistogram) TimeSeries() []*prompb.TimeSeries {
+func (hg *PBHistogram) TimeSeries() []*prompb.TimeSeries {
 	// labels := hg.Labels()
 	// tsList := make([]*prompb.TimeSeries, 0, len(hg.LabelValues()))
 	// for _, lvs := range hg.LabelValues() {
@@ -93,8 +93,8 @@ func (hg *PbHistogram) TimeSeries() []*prompb.TimeSeries {
 }
 
 // lvs 不包含 bucket_label
-func (hg *PbHistogram) Observe(lvs []string, value float64) {
-	b := selectBucket(hg.buckets, value)
+func (hg *PBHistogram) Observe(lvs []string, value float64) {
+	b := findBucket(hg.buckets, value)
 	if b <= 0 {
 		log.Println("no bucket for value:", value)
 		return
@@ -107,7 +107,7 @@ func (hg *PbHistogram) Observe(lvs []string, value float64) {
 //  1. <0: error
 //  2. 0: no bucket
 //  3. >0: bucket value
-func selectBucket(buckets []float64, value float64) float64 {
+func findBucket(buckets []float64, value float64) float64 {
 	if !slices.IsSorted(buckets) {
 		return -1
 	}
@@ -119,10 +119,10 @@ func selectBucket(buckets []float64, value float64) float64 {
 	return 0
 }
 
-func (hg *PbHistogram) Labels() []string {
+func (hg *PBHistogram) Labels() []string {
 	return hg.vec.Labels()
 }
 
-func (hg *PbHistogram) LabelValues() [][]string {
+func (hg *PBHistogram) LabelValues() [][]string {
 	return hg.vec.LabelValues()
 }
