@@ -25,6 +25,7 @@ type HistogramMeter interface {
 	TimeSeries() []*prompb.TimeSeries
 	Labels() []string
 	LabelValues() [][]string
+	GetBucketValue(lvs []string) (float64, error)
 }
 
 // PBHistogram wraps a prometheus.CounterVec
@@ -32,6 +33,8 @@ type HistogramMeter interface {
 type PBHistogram struct {
 	vec     *Vec      // bucket_label must be included in end of labels
 	buckets []float64 // must sorted by ascending
+	count   int
+	sum     float64
 }
 
 func NewPBHistogram(name string, help string, labels []string, buckets []float64) *PBHistogram {
@@ -69,6 +72,12 @@ func (hg *PBHistogram) Name() string {
 	return hg.vec.Name()
 }
 
+// Implement PBMetric interface
+// Remote Write Client will call this method to get TimeSeries
+// TODO:
+// 1. 获取所有 bucket 值
+// 2. 获取 sum 和 count
+// 3. 生成 []*prompb.TimeSeries
 func (hg *PBHistogram) TimeSeries() []*prompb.TimeSeries {
 	// labels := hg.Labels()
 	// tsList := make([]*prompb.TimeSeries, 0, len(hg.LabelValues()))
@@ -125,4 +134,30 @@ func (hg *PBHistogram) Labels() []string {
 
 func (hg *PBHistogram) LabelValues() [][]string {
 	return hg.vec.LabelValues()
+}
+
+func (hg *PBHistogram) GetBucketValue(lvs []string) (float64, error) {
+	m, err := hg.vec.GetMetricWithLabelValues(lvs...)
+	if err != nil {
+		return 0, err
+	}
+	return GetMetricValue(m)
+}
+
+// XXX_count
+func (hg *PBHistogram) GetCount() float64 {
+	return float64(hg.count)
+}
+
+func (hg *PBHistogram) SetCount(v int) {
+	hg.count = v
+}
+
+// XXX_sum
+func (hg *PBHistogram) GetSum() float64 {
+	return hg.sum
+}
+
+func (hg *PBHistogram) SetSum(v float64) {
+	hg.sum = v
 }
