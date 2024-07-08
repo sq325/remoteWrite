@@ -22,13 +22,13 @@ type HistogramMeter interface {
 	PBMetric
 	Observe(lvs []string, value float64)
 	Name() string
-	TimeSeries() []*prompb.TimeSeries
 	Labels() []string
 	LabelValues() [][]string
 	GetBucketValue(lvs []string) (float64, error)
 }
 
-// PBHistogram wraps a prometheus.CounterVec
+// A PBHistogram is a series of histogram metric with different pb.Labels
+// pb.Labels have same names but different values
 // PBHistogram implements PBCounterMeter interface
 type PBHistogram struct {
 	vec     *Vec      // bucket_label must be included in end of labels
@@ -37,6 +37,7 @@ type PBHistogram struct {
 	sum     float64
 }
 
+// labels must not include bucket_label
 func NewPBHistogram(name string, help string, labels []string, buckets []float64) *PBHistogram {
 	if len(buckets) == 0 {
 		buckets = defaultBuckets
@@ -73,32 +74,56 @@ func (hg *PBHistogram) Name() string {
 }
 
 // Implement PBMetric interface
-// Remote Write Client will call this method to get TimeSeries
 // TODO:
-// 1. 获取所有 bucket 值
-// 2. 获取 sum 和 count
+// 1. 生成 {name}_sum 和 {name}_count 指标
+// 2. 生成 bucket 指标
 // 3. 生成 []*prompb.TimeSeries
-func (hg *PBHistogram) TimeSeries() []*prompb.TimeSeries {
-	// labels := hg.Labels()
-	// tsList := make([]*prompb.TimeSeries, 0, len(hg.LabelValues()))
-	// for _, lvs := range hg.LabelValues() {
-	// 	if len(labels) != len(lvs) {
-	// 		log.Println("labels and labelvalues not match")
-	// 		continue
-	// 	}
+// timestamp: timestamp is in ms format
+func (hg *PBHistogram) TimeSeries(timestamp int64) []*prompb.TimeSeries {
+	n := len(hg.vec.LabelValues())
+	if n == 0 {
+		return nil
+	}
 
-	// 	ts := &prompb.TimeSeries{
-	// 		Labels: make([]*prompb.Label, 0, len(labels)),
-	// 		Samples: []*prompb.Sample{
-	// 			{
-	// 				Value:     0,
-	// 				Timestamp: 0,
-	// 			},
-	// 		},
-	// 	}
+	tsList := make([]*prompb.TimeSeries, 0, n)
+	// A lvs generate a TimeSeries
+	for _, lvs := range hg.vec.LabelValues() {
+		if len(lvs) != len(hg.vec.Labels()) {
+			log.Println("labels and labelvalues not match")
+			continue
+		}
+		m, err := hg.vec.GetMetricWithLabelValues(lvs...)
+		if err != nil {
+			continue
+		}
+		v, err := GetMetricValue(m)
+		if err != nil {
+			log.Println(err)
+		}
 
-	// }
-	return nil
+		labels := make([]*prompb.Label, 0, len(hg.vec.Labels()))
+		{
+			for i, label := range hg.vec.Labels() {
+				labels = append(labels, &prompb.Label{
+					Name:  label,
+					Value: lvs[i],
+				})
+			}
+		}
+
+		sample := &prompb.Sample{
+			Value:     v,
+			Timestamp: timestamp,
+		}
+
+		ts := &prompb.TimeSeries{
+			Labels:  labels,
+			Samples: []*prompb.Sample{sample},
+		}
+		tsList = append(tsList, ts)
+	}
+
+	return tsList
 }
 
 // lvs 不包含 bucket_label
@@ -108,7 +133,7 @@ func (hg *PBHistogram) Observe(lvs []string, value float64) {
 		log.Println("no bucket for value:", value)
 		return
 	}
-	lvs = append(lvs, strconv.FormatFloat(b, 'f', -1, 64))
+	lvs = append(lvs, strconv.FormatFloat(b, 'f', -1, 64)) // add bucket_label
 	hg.vec.Add(lvs, value)
 }
 
