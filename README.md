@@ -1,6 +1,6 @@
 
 ```mermaid
-  ClassDiagram
+  classDiagram
     Class Vec{
     }
 
