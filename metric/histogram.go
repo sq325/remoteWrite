@@ -120,23 +120,7 @@ func (hg *PBHistogram) TimeSeries(timestamp int64) []*prompb.TimeSeries {
 
 		// __name__ is the first label
 		// bucket_label is the last label
-		labels := make([]*prompb.Label, 0, len(hg.Labels())+1) // +1 for __name__
-		{
-			for i, label := range hg.Labels() {
-				labels = append(labels, &prompb.Label{
-					Name:  label,
-					Value: lvs[i],
-				})
-			}
-
-			// add __name__
-			labels = slices.Insert(labels, 0,
-				&prompb.Label{
-					Name:  "__name__",
-					Value: hg.Name() + "_bucket",
-				},
-			)
-		}
+		pblabels := prompbLabels(hg.Name()+"_bucket", hg.Labels(), lvs)
 
 		sample := &prompb.Sample{
 			Value:     v,
@@ -144,7 +128,7 @@ func (hg *PBHistogram) TimeSeries(timestamp int64) []*prompb.TimeSeries {
 		}
 
 		ts := &prompb.TimeSeries{
-			Labels:  labels,
+			Labels:  pblabels,
 			Samples: []*prompb.Sample{sample},
 		}
 
@@ -161,26 +145,26 @@ func (hg *PBHistogram) TimeSeries(timestamp int64) []*prompb.TimeSeries {
 
 	var ts_sum *prompb.TimeSeries
 	{
-		labels := prompbLabels(hg.Name()+"_sum", lv, lvs)
+		pblabels := prompbLabels(hg.Name()+"_sum", lv, lvs)
 		sample := &prompb.Sample{
 			Value:     hg.Sum(),
 			Timestamp: timestamp,
 		}
 		ts_sum = &prompb.TimeSeries{
-			Labels:  labels,
+			Labels:  pblabels,
 			Samples: []*prompb.Sample{sample},
 		}
 	}
 
 	var ts_count *prompb.TimeSeries
 	{
-		labels := prompbLabels(hg.Name()+"_count", lv, lvs)
+		pblabels := prompbLabels(hg.Name()+"_count", lv, lvs)
 		sample := &prompb.Sample{
 			Value:     float64(hg.Count()),
 			Timestamp: timestamp,
 		}
 		ts_count = &prompb.TimeSeries{
-			Labels:  labels,
+			Labels:  pblabels,
 			Samples: []*prompb.Sample{sample},
 		}
 	}
@@ -189,7 +173,7 @@ func (hg *PBHistogram) TimeSeries(timestamp int64) []*prompb.TimeSeries {
 	return tsList
 }
 
-// TODO
+// prompbLabels generates []*prompb.Label based on lv and lvs, and adds the name label
 func prompbLabels(name string, lv, lvs []string) []*prompb.Label {
 	if len(lv) != len(lvs) {
 		log.Println("labels and labelvalues not match")
@@ -209,7 +193,7 @@ func prompbLabels(name string, lv, lvs []string) []*prompb.Label {
 	labels = slices.Insert(labels, 0,
 		&prompb.Label{
 			Name:  "__name__",
-			Value: name + "_sum",
+			Value: name,
 		},
 	)
 	return labels
