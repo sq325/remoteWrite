@@ -83,30 +83,30 @@ func (v *Vec) LabelValues() [][]string {
 
 func (v *Vec) Set(labelvalues []string, value float64) {
 	switch any(v.vec).(type) {
-	case *prometheus.CounterVec:
-		any(v.vec).(*prometheus.CounterVec).WithLabelValues(labelvalues...).Add(value)
-	case *prometheus.GaugeVec:
-		any(v.vec).(*prometheus.GaugeVec).WithLabelValues(labelvalues...).Set(value)
+	case *counterVec:
+		any(v.vec).(*counterVec).cv.WithLabelValues(labelvalues...).Add(value)
+	case *gaugeVec:
+		any(v.vec).(*gaugeVec).gv.WithLabelValues(labelvalues...).Set(value)
 	}
 	v.labelvalues = append(v.labelvalues, labelvalues)
 }
 
 func (v *Vec) Add(labelvalues []string, value float64) {
 	switch any(v.vec).(type) {
-	case *prometheus.CounterVec:
-		any(v.vec).(*prometheus.CounterVec).WithLabelValues(labelvalues...).Add(value)
-	case *prometheus.GaugeVec:
-		any(v.vec).(*prometheus.GaugeVec).WithLabelValues(labelvalues...).Add(value)
+	case *counterVec:
+		any(v.vec).(*counterVec).cv.WithLabelValues(labelvalues...).Add(value)
+	case *gaugeVec:
+		any(v.vec).(*gaugeVec).gv.WithLabelValues(labelvalues...).Add(value)
 	}
 	v.labelvalues = append(v.labelvalues, labelvalues)
 }
 
 func (v *Vec) Inc(labelvalues []string) {
 	switch any(v.vec).(type) {
-	case *prometheus.CounterVec:
-		any(v.vec).(*prometheus.CounterVec).WithLabelValues(labelvalues...).Inc()
-	case *prometheus.GaugeVec:
-		any(v.vec).(*prometheus.GaugeVec).WithLabelValues(labelvalues...).Inc()
+	case *counterVec:
+		any(v.vec).(*counterVec).cv.WithLabelValues(labelvalues...).Inc()
+	case *gaugeVec:
+		any(v.vec).(*gaugeVec).gv.WithLabelValues(labelvalues...).Inc()
 	}
 	v.labelvalues = append(v.labelvalues, labelvalues)
 }

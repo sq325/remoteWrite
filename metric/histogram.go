@@ -265,6 +265,7 @@ func (hg *PBHistogram) LabelValues() [][]string {
 	return hg.vec.LabelValues()
 }
 
+// lvs must not include bucket_label
 func (hg *PBHistogram) GetBucketValue(lvs []string) (float64, error) {
 	m, err := hg.vec.GetMetricWithLabelValues(lvs...)
 	if err != nil {
