@@ -135,7 +135,7 @@ func (hg *PBHistogram) TimeSeries(timestamp int64) []*prompb.TimeSeries {
 		tsList = append(tsList, ts)
 	}
 
-	// sum and count
+	// sum, count and Inf
 	lvs := hg.LabelValues()[0]
 	lvs = lvs[:len(lvs)-1]                 // remove bucket_label
 	lv := hg.Labels()[:len(hg.Labels())-1] // remove bucket_label
@@ -169,7 +169,22 @@ func (hg *PBHistogram) TimeSeries(timestamp int64) []*prompb.TimeSeries {
 		}
 	}
 
-	tsList = append(tsList, ts_sum, ts_count)
+	var ts_inf *prompb.TimeSeries
+	{
+		lv = append(lv, bucket_label)
+		lvs = append(lvs, "+Inf")
+		pblabels := prompbLabels(hg.Name()+"_bucket", lv, lvs)
+		sample := &prompb.Sample{
+			Value:     float64(hg.Count()),
+			Timestamp: timestamp,
+		}
+		ts_inf = &prompb.TimeSeries{
+			Labels:  pblabels,
+			Samples: []*prompb.Sample{sample},
+		}
+	}
+
+	tsList = append(tsList, ts_sum, ts_count, ts_inf)
 	return tsList
 }
 
