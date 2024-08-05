@@ -2,6 +2,7 @@ package metric
 
 import (
 	"errors"
+	"reflect"
 
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
@@ -88,7 +89,18 @@ func (v *Vec) Set(labelvalues []string, value float64) {
 	case *gaugeVec:
 		any(v.vec).(*gaugeVec).gv.WithLabelValues(labelvalues...).Set(value)
 	}
-	v.labelvalues = append(v.labelvalues, labelvalues)
+
+	var exist bool
+	for _, lv := range v.labelvalues {
+		if reflect.DeepEqual(lv, labelvalues) {
+			exist = true
+			break
+		}
+	}
+
+	if !exist {
+		v.labelvalues = append(v.labelvalues, labelvalues)
+	}
 }
 
 func (v *Vec) Add(labelvalues []string, value float64) {
@@ -98,7 +110,18 @@ func (v *Vec) Add(labelvalues []string, value float64) {
 	case *gaugeVec:
 		any(v.vec).(*gaugeVec).gv.WithLabelValues(labelvalues...).Add(value)
 	}
-	v.labelvalues = append(v.labelvalues, labelvalues)
+
+	var exist bool
+	for _, lv := range v.labelvalues {
+		if reflect.DeepEqual(lv, labelvalues) {
+			exist = true
+			break
+		}
+	}
+
+	if !exist {
+		v.labelvalues = append(v.labelvalues, labelvalues)
+	}
 }
 
 func (v *Vec) Inc(labelvalues []string) {
@@ -108,7 +131,18 @@ func (v *Vec) Inc(labelvalues []string) {
 	case *gaugeVec:
 		any(v.vec).(*gaugeVec).gv.WithLabelValues(labelvalues...).Inc()
 	}
-	v.labelvalues = append(v.labelvalues, labelvalues)
+
+	var exist bool
+	for _, lv := range v.labelvalues {
+		if reflect.DeepEqual(lv, labelvalues) {
+			exist = true
+			break
+		}
+	}
+
+	if !exist {
+		v.labelvalues = append(v.labelvalues, labelvalues)
+	}
 }
 
 func (v *Vec) GetMetricWithLabelValues(lvs ...string) (prometheus.Metric, error) {

@@ -26,7 +26,7 @@ type HistogramMeter interface {
 }
 
 type HistogramWriter interface {
-	Add(lvs []string, value float64, le float64, sum float64)
+	Add(lvs []string, value float64, le float64)
 	Observe(lvs []string, value float64)
 	Reset()
 }
@@ -52,7 +52,8 @@ type PBHistogram struct {
 
 var _ HistogramMeter = (*PBHistogram)(nil)
 
-// labels must not include bucket_label
+// name is the name of histogram without _bucket suffix
+// labels must not include bucket_label le
 func NewPBHistogram(name string, help string, labels []string, buckets []float64) *PBHistogram {
 	if len(buckets) == 0 {
 		buckets = defaultBuckets
@@ -90,10 +91,6 @@ func (hg *PBHistogram) Name() string {
 }
 
 // Implement PBMetric interface
-// TODO:
-// 1. 生成 {name}_sum 和 {name}_count 指标
-// 2. 生成 bucket 指标
-// 3. 生成 []*prompb.TimeSeries
 // timestamp: timestamp is in ms format
 func (hg *PBHistogram) TimeSeries(timestamp int64) []*prompb.TimeSeries {
 	n := len(hg.LabelValues())
@@ -101,7 +98,7 @@ func (hg *PBHistogram) TimeSeries(timestamp int64) []*prompb.TimeSeries {
 		return nil
 	}
 
-	tsList := make([]*prompb.TimeSeries, 0, n+2) // +2 for sum and count
+	tsList := make([]*prompb.TimeSeries, 0, n+3) // +3 for sum, count and Inf
 	// A lvs generate a TimeSeries
 	// lvs containers bucket_label
 	for _, lvs := range hg.LabelValues() {
@@ -224,17 +221,15 @@ func (hg *PBHistogram) Observe(lvs []string, value float64) {
 	}
 	lvs = append(lvs, strconv.FormatFloat(b, 'f', -1, 64)) // add bucket_label
 	hg.vec.Add(lvs, value)
-	hg.count++      // update count
 	hg.sum += value // update sum
 }
 
 // Add add the value to the corresponding bucket.
+// Do not add a bucket with le=+Inf, as the +Inf bucket will be automatically generated in the TimeSeries
 // lvs must not include bucket_label
-func (hg *PBHistogram) Add(lvs []string, value float64, le float64, sum float64) {
+func (hg *PBHistogram) Add(lvs []string, value float64, le float64) {
 	lvs = append(lvs, strconv.FormatFloat(le, 'f', -1, 64)) // add bucket_label
 	hg.vec.Add(lvs, value)
-	hg.AddCount(int(value)) // update count
-	hg.AddSum(sum)          // update sum
 }
 
 func (hg *PBHistogram) AddCount(c int) {
