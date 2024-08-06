@@ -18,9 +18,10 @@ func TestPBHistogram_TimeSeries(t *testing.T) {
 		timestamp int64
 	}
 	tests := []struct {
-		name string
-		args args
-		want []*prompb.TimeSeries
+		name  string
+		args  args
+		want  []*prompb.TimeSeries
+		want2 []*prompb.TimeSeries
 	}{
 		{
 			name: "test1",
@@ -181,6 +182,156 @@ func TestPBHistogram_TimeSeries(t *testing.T) {
 					},
 				},
 			},
+			want2: []*prompb.TimeSeries{
+				{
+					Labels: []*prompb.Label{
+						{
+							Name:  "__name__",
+							Value: "app1_bucket",
+						},
+						{
+							Name:  "l1",
+							Value: "v1",
+						},
+						{
+							Name:  "l2",
+							Value: "v2",
+						},
+						{
+							Name:  "le",
+							Value: "50",
+						},
+					},
+					Samples: []*prompb.Sample{
+						{
+							Value:     10,
+							Timestamp: 1722838430634,
+						},
+					},
+				},
+				{
+					Labels: []*prompb.Label{
+						{
+							Name:  "__name__",
+							Value: "app1_bucket",
+						},
+						{
+							Name:  "l1",
+							Value: "v1",
+						},
+						{
+							Name:  "l2",
+							Value: "v2",
+						},
+						{
+							Name:  "le",
+							Value: "100",
+						},
+					},
+					Samples: []*prompb.Sample{
+						{
+							Value:     16,
+							Timestamp: 1722838430634,
+						},
+					},
+				},
+				{
+					Labels: []*prompb.Label{
+						{
+							Name:  "__name__",
+							Value: "app1_bucket",
+						},
+						{
+							Name:  "l1",
+							Value: "v1",
+						},
+						{
+							Name:  "l2",
+							Value: "v2",
+						},
+						{
+							Name:  "le",
+							Value: "200",
+						},
+					},
+					Samples: []*prompb.Sample{
+						{
+							Value:     26,
+							Timestamp: 1722838430634,
+						},
+					},
+				},
+				{
+					Labels: []*prompb.Label{
+						{
+							Name:  "__name__",
+							Value: "app1_sum",
+						},
+						{
+							Name:  "l1",
+							Value: "v1",
+						},
+						{
+							Name:  "l2",
+							Value: "v2",
+						},
+					},
+					Samples: []*prompb.Sample{
+						{
+							Value:     3000,
+							Timestamp: 1722838430634,
+						},
+					},
+				},
+				{
+					Labels: []*prompb.Label{
+						{
+							Name:  "__name__",
+							Value: "app1_count",
+						},
+						{
+							Name:  "l1",
+							Value: "v1",
+						},
+						{
+							Name:  "l2",
+							Value: "v2",
+						},
+					},
+					Samples: []*prompb.Sample{
+						{
+							Value:     26,
+							Timestamp: 1722838430634,
+						},
+					},
+				},
+				{
+					Labels: []*prompb.Label{
+						{
+							Name:  "__name__",
+							Value: "app1_bucket",
+						},
+						{
+							Name:  "l1",
+							Value: "v1",
+						},
+						{
+							Name:  "l2",
+							Value: "v2",
+						},
+						{
+							Name:  "le",
+							Value: "+Inf",
+						},
+					},
+					Samples: []*prompb.Sample{
+						{
+							Value:     26,
+							Timestamp: 1722838430634,
+						},
+					},
+				},
+			},
 		},
 	}
 	for _, tt := range tests {
@@ -192,11 +343,26 @@ func TestPBHistogram_TimeSeries(t *testing.T) {
 			hg.AddCount(13)
 			hg.AddSum(1500)
 			got := hg.TimeSeries(tt.args.timestamp)
+
 			if !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("PBHistogram.TimeSeries() = %v, want %v", got, tt.want)
 			}
 
 			for _, ts := range got {
+				TSDebug(ts)
+			}
+
+			hg.Add([]string{"v1", "v2"}, 5, 50)
+			hg.Add([]string{"v1", "v2"}, 8, 100)
+			hg.Add([]string{"v1", "v2"}, 13, 200)
+			hg.AddCount(13)
+			hg.AddSum(1500)
+			got2 := hg.TimeSeries(tt.args.timestamp + 30000)
+
+			if !reflect.DeepEqual(got2, tt.want2) {
+				t.Errorf("PBHistogram.TimeSeries() = %v, want %v", got, tt.want)
+			}
+			for _, ts := range got2 {
 				TSDebug(ts)
 			}
 		})
