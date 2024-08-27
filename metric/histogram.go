@@ -27,6 +27,7 @@ type HistogramMeter interface {
 
 type HistogramWriter interface {
 	Add(lvs []string, value float64, le float64)
+	AddSum(lvs []string, value float64)
 	Observe(lvs []string, value float64)
 	Reset()
 }
@@ -36,8 +37,6 @@ type HistogramReader interface {
 	Labels() []string
 	LabelValues() [][]string
 	Buckets() []float64
-	Count() int
-	Sum() float64
 }
 
 // A PBHistogram is composed of several bucket metrics and a sum and a count metric
@@ -46,8 +45,8 @@ type HistogramReader interface {
 type PBHistogram struct {
 	vec     *Vec      // bucket_label must be included in end of labels
 	buckets []float64 // must sorted by ascending
-	count   int
-	sum     float64
+	count   *Vec
+	sum     *Vec
 }
 
 var _ HistogramMeter = (*PBHistogram)(nil)
@@ -59,6 +58,34 @@ func NewPBHistogram(name string, help string, labels []string, buckets []float64
 		buckets = defaultBuckets
 	}
 
+	vecCount := NewVec(
+		name+"_count",
+		labels,
+		&counterVec{
+			cv: prometheus.NewCounterVec(
+				prometheus.CounterOpts{
+					Name: name + "_count",
+					Help: help,
+				},
+				labels,
+			),
+		},
+	)
+
+	vecSum := NewVec(
+		name+"_sum",
+		labels,
+		&counterVec{
+			cv: prometheus.NewCounterVec(
+				prometheus.CounterOpts{
+					Name: name + "_sum",
+					Help: help,
+				},
+				labels,
+			),
+		},
+	)
+
 	// add bucket_label
 	labels = append(labels, bucket_label)
 	if buckets == nil {
@@ -66,12 +93,12 @@ func NewPBHistogram(name string, help string, labels []string, buckets []float64
 	}
 
 	vec := NewVec(
-		name,
+		name+"_bucket",
 		labels,
 		&counterVec{
 			cv: prometheus.NewCounterVec(
 				prometheus.CounterOpts{
-					Name: name,
+					Name: name + "_bucket",
 					Help: help,
 				},
 				labels,
@@ -82,10 +109,12 @@ func NewPBHistogram(name string, help string, labels []string, buckets []float64
 	return &PBHistogram{
 		vec:     vec,
 		buckets: buckets,
+		count:   vecCount,
+		sum:     vecSum,
 	}
 }
 
-// Name return the name of histogram without _bucket suffix
+// Name return the name of metric
 func (hg *PBHistogram) Name() string {
 	return hg.vec.Name()
 }
@@ -93,96 +122,76 @@ func (hg *PBHistogram) Name() string {
 // Implement PBMetric interface
 // timestamp: timestamp is in ms format
 func (hg *PBHistogram) TimeSeries(timestamp int64) []*prompb.TimeSeries {
-	n := len(hg.LabelValues())
-	if n == 0 {
+	cn := len(hg.count.LabelValues())
+	if cn == 0 {
 		return nil
 	}
 
-	tsList := make([]*prompb.TimeSeries, 0, n+3) // +3 for sum, count and Inf
-	// A lvs generate a TimeSeries
-	// lvs containers bucket_label
-	for _, lvs := range hg.LabelValues() {
-		if len(lvs) != len(hg.Labels()) {
-			log.Println("labels and labelvalues not match")
-			continue
-		}
-		m, err := hg.vec.GetMetricWithLabelValues(lvs...)
-		if err != nil {
-			continue
-		}
-		v, err := GetMetricValue(m)
-		if err != nil {
-			log.Println(err)
-		}
+	tsGenerator := func(vec *Vec) []*prompb.TimeSeries {
+		tsList := make([]*prompb.TimeSeries, 0, len(vec.LabelValues()))
+		for _, lvs := range vec.LabelValues() {
+			if len(lvs) != len(vec.Labels()) {
+				log.Println("labels and labelvalues not match")
+				continue
+			}
+			m, err := vec.GetMetricWithLabelValues(lvs...)
+			if err != nil {
+				continue
+			}
+			v, err := GetMetricValue(m)
+			if err != nil {
+				log.Println(err)
+			}
 
-		// __name__ is the first label
-		// bucket_label is the last label
-		pblabels := prompbLabels(hg.Name()+"_bucket", hg.Labels(), lvs)
-
-		sample := &prompb.Sample{
-			Value:     v,
-			Timestamp: timestamp,
+			pblabels := prompbLabels(vec.Name(), vec.Labels(), lvs)
+			sample := &prompb.Sample{
+				Value:     v,
+				Timestamp: timestamp,
+			}
+			ts := &prompb.TimeSeries{
+				Labels:  pblabels,
+				Samples: []*prompb.Sample{sample},
+			}
+			tsList = append(tsList, ts)
 		}
-
-		ts := &prompb.TimeSeries{
-			Labels:  pblabels,
-			Samples: []*prompb.Sample{sample},
-		}
-
-		tsList = append(tsList, ts)
+		return tsList
 	}
 
-	// sum, count and Inf
-	lvs := make([]string, len(hg.LabelValues()[0]))
-	copy(lvs, hg.LabelValues()[0])
-	lvs = lvs[:len(lvs)-1]                 // remove bucket_label
-	lv := hg.Labels()[:len(hg.Labels())-1] // remove bucket_label
-	if len(lvs) != len(lv) {
-		log.Println("labels and labelvalues not match, can not generate sum and count")
-	}
+	tsList := make([]*prompb.TimeSeries, 0, cn+cn+cn+cn*len(hg.buckets)) // sum, count, inf = cn, cn*len(buckets) = bucket
+	tsList = append(tsList, tsGenerator(hg.vec)...)
 
-	var ts_sum *prompb.TimeSeries
+	var ts_sum = make([]*prompb.TimeSeries, 0, cn)
+	ts_sum = append(ts_sum, tsGenerator(hg.sum)...)
+
+	var ts_count = make([]*prompb.TimeSeries, 0, cn)
+	tslist := tsGenerator(hg.count)
+	ts_count = append(ts_count, tslist...)
+
+	var ts_inf = make([]*prompb.TimeSeries, 0, cn)
 	{
-		pblabels := prompbLabels(hg.Name()+"_sum", lv, lvs)
-		sample := &prompb.Sample{
-			Value:     hg.Sum(),
-			Timestamp: timestamp,
-		}
-		ts_sum = &prompb.TimeSeries{
-			Labels:  pblabels,
-			Samples: []*prompb.Sample{sample},
+		tslist := tsGenerator(hg.count)
+		for _, ts := range tslist {
+			// 把末尾的_count 改成 _bucket
+			for _, l := range ts.Labels {
+
+				if l.Name == "__name__" {
+					l.Value = hg.vec.Name()
+				}
+			}
+
+			// 给每个ts增加le=+Inf
+			ts.Labels = append(ts.Labels, &prompb.Label{
+				Name:  bucket_label,
+				Value: strconv.FormatFloat(math.Inf(1), 'f', -1, 64),
+			})
+			ts_inf = append(ts_inf, ts)
 		}
 	}
 
-	var ts_count *prompb.TimeSeries
-	{
-		pblabels := prompbLabels(hg.Name()+"_count", lv, lvs)
-		sample := &prompb.Sample{
-			Value:     float64(hg.Count()),
-			Timestamp: timestamp,
-		}
-		ts_count = &prompb.TimeSeries{
-			Labels:  pblabels,
-			Samples: []*prompb.Sample{sample},
-		}
-	}
+	tsList = append(tsList, ts_sum...)
+	tsList = append(tsList, ts_count...)
+	tsList = append(tsList, ts_inf...)
 
-	var ts_inf *prompb.TimeSeries
-	{
-		lv = append(lv, bucket_label)
-		lvs = append(lvs, strconv.FormatFloat(math.Inf(1), 'f', -1, 64))
-		pblabels := prompbLabels(hg.Name()+"_bucket", lv, lvs)
-		sample := &prompb.Sample{
-			Value:     float64(hg.Count()),
-			Timestamp: timestamp,
-		}
-		ts_inf = &prompb.TimeSeries{
-			Labels:  pblabels,
-			Samples: []*prompb.Sample{sample},
-		}
-	}
-
-	tsList = append(tsList, ts_sum, ts_count, ts_inf)
 	return tsList
 }
 
@@ -220,24 +229,30 @@ func (hg *PBHistogram) Observe(lvs []string, value float64) {
 		log.Println("no bucket for value:", value)
 		return
 	}
+
+	hg.count.Add(lvs, 1)
+	hg.sum.Add(lvs, value)
+
 	lvs = append(lvs, strconv.FormatFloat(b, 'f', -1, 64)) // add bucket_label
-	hg.vec.Add(lvs, value)
-	hg.sum += value // update sum
+	hg.vec.Add(lvs, 1)
 }
 
 // Add add the value to the corresponding bucket.
 // Do not add a bucket with le=+Inf, as the +Inf bucket will be automatically generated in the TimeSeries
 // lvs must not include bucket_label
 func (hg *PBHistogram) Add(lvs []string, value float64, le float64) {
+	hg.count.Add(lvs, value)
+
 	lvs = append(lvs, strconv.FormatFloat(le, 'f', -1, 64)) // add bucket_label
 	hg.vec.Add(lvs, value)
 }
 
-func (hg *PBHistogram) AddCount(c int) {
-	hg.count += c
-}
-func (hg *PBHistogram) AddSum(s float64) {
-	hg.sum += s
+// func (hg *PBHistogram) AddCount(lvs []string, c int) {
+// 	hg.count.Add(lvs, float64(c))
+// }
+
+func (hg *PBHistogram) AddSum(lvs []string, s float64) {
+	hg.sum.Add(lvs, s)
 }
 
 // TODO: eset count and sum to zero, reinitialize vec
@@ -286,11 +301,24 @@ func (hg *PBHistogram) GetBucketValue(lvs []string) (float64, error) {
 }
 
 // XXX_count
-func (hg *PBHistogram) Count() int {
-	return hg.count
+func (hg *PBHistogram) GetCountValue(lvs []string) (int, error) {
+	m, err := hg.count.GetMetricWithLabelValues(lvs...)
+	if err != nil {
+		return 0, err
+	}
+	f, err := GetMetricValue(m)
+	if err != nil {
+		return 0, err
+	}
+
+	return int(f), nil
 }
 
 // XXX_sum
-func (hg *PBHistogram) Sum() float64 {
-	return hg.sum
+func (hg *PBHistogram) Sum(lvs []string) (float64, error) {
+	m, err := hg.sum.GetMetricWithLabelValues(lvs...)
+	if err != nil {
+		return 0, err
+	}
+	return GetMetricValue(m)
 }

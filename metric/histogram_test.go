@@ -3,369 +3,348 @@ package metric
 import (
 	"log"
 	"reflect"
+	"sort"
 	"testing"
 
 	"github.com/sq325/remoteWrite/prompb"
 )
 
 func TestPBHistogram_TimeSeries(t *testing.T) {
+	hg := NewPBHistogram("test_histogram", "Test Histogram", []string{"label1", "label2"}, []float64{50, 100, 200})
+	hg.Add([]string{"value1", "value2"}, 5, 50)
+	hg.Add([]string{"value1", "value2"}, 8, 100)
+	hg.Add([]string{"value1", "value2"}, 13, 200)
+	hg.Add([]string{"value1", "value3"}, 11, 50)
+	hg.Add([]string{"value1", "value3"}, 40, 100)
+	hg.Add([]string{"value1", "value3"}, 80, 200)
+	hg.AddSum([]string{"value1", "value2"}, 1500)
+	hg.AddSum([]string{"value1", "value3"}, 3300)
+	got := hg.TimeSeries(1722838400634)
 
-	type args struct {
-		name      string
-		help      string
-		labels    []string
-		buckets   []float64
-		timestamp int64
-	}
-	tests := []struct {
-		name  string
-		args  args
-		want  []*prompb.TimeSeries
-		want2 []*prompb.TimeSeries
-	}{
+	want := []*prompb.TimeSeries{
 		{
-			name: "test1",
-			args: args{
-				name:      "app1",
-				help:      "help1",
-				labels:    []string{"l1", "l2"},
-				buckets:   []float64{50, 100, 200},
-				timestamp: 1722838400634,
-			},
-			want: []*prompb.TimeSeries{
+			Labels: []*prompb.Label{
 				{
-					Labels: []*prompb.Label{
-						{
-							Name:  "__name__",
-							Value: "app1_bucket",
-						},
-						{
-							Name:  "l1",
-							Value: "v1",
-						},
-						{
-							Name:  "l2",
-							Value: "v2",
-						},
-						{
-							Name:  "le",
-							Value: "50",
-						},
-					},
-					Samples: []*prompb.Sample{
-						{
-							Value:     5,
-							Timestamp: 1722838400634,
-						},
-					},
+					Name:  "__name__",
+					Value: "test_histogram_bucket",
 				},
 				{
-					Labels: []*prompb.Label{
-						{
-							Name:  "__name__",
-							Value: "app1_bucket",
-						},
-						{
-							Name:  "l1",
-							Value: "v1",
-						},
-						{
-							Name:  "l2",
-							Value: "v2",
-						},
-						{
-							Name:  "le",
-							Value: "100",
-						},
-					},
-					Samples: []*prompb.Sample{
-						{
-							Value:     8,
-							Timestamp: 1722838400634,
-						},
-					},
+					Name:  "label1",
+					Value: "value1",
 				},
 				{
-					Labels: []*prompb.Label{
-						{
-							Name:  "__name__",
-							Value: "app1_bucket",
-						},
-						{
-							Name:  "l1",
-							Value: "v1",
-						},
-						{
-							Name:  "l2",
-							Value: "v2",
-						},
-						{
-							Name:  "le",
-							Value: "200",
-						},
-					},
-					Samples: []*prompb.Sample{
-						{
-							Value:     13,
-							Timestamp: 1722838400634,
-						},
-					},
+					Name:  "label2",
+					Value: "value2",
 				},
 				{
-					Labels: []*prompb.Label{
-						{
-							Name:  "__name__",
-							Value: "app1_sum",
-						},
-						{
-							Name:  "l1",
-							Value: "v1",
-						},
-						{
-							Name:  "l2",
-							Value: "v2",
-						},
-					},
-					Samples: []*prompb.Sample{
-						{
-							Value:     1500,
-							Timestamp: 1722838400634,
-						},
-					},
-				},
-				{
-					Labels: []*prompb.Label{
-						{
-							Name:  "__name__",
-							Value: "app1_count",
-						},
-						{
-							Name:  "l1",
-							Value: "v1",
-						},
-						{
-							Name:  "l2",
-							Value: "v2",
-						},
-					},
-					Samples: []*prompb.Sample{
-						{
-							Value:     13,
-							Timestamp: 1722838400634,
-						},
-					},
-				},
-				{
-					Labels: []*prompb.Label{
-						{
-							Name:  "__name__",
-							Value: "app1_bucket",
-						},
-						{
-							Name:  "l1",
-							Value: "v1",
-						},
-						{
-							Name:  "l2",
-							Value: "v2",
-						},
-						{
-							Name:  "le",
-							Value: "+Inf",
-						},
-					},
-					Samples: []*prompb.Sample{
-						{
-							Value:     13,
-							Timestamp: 1722838400634,
-						},
-					},
+					Name:  "le",
+					Value: "50",
 				},
 			},
-			want2: []*prompb.TimeSeries{
+			Samples: []*prompb.Sample{
 				{
-					Labels: []*prompb.Label{
-						{
-							Name:  "__name__",
-							Value: "app1_bucket",
-						},
-						{
-							Name:  "l1",
-							Value: "v1",
-						},
-						{
-							Name:  "l2",
-							Value: "v2",
-						},
-						{
-							Name:  "le",
-							Value: "50",
-						},
-					},
-					Samples: []*prompb.Sample{
-						{
-							Value:     10,
-							Timestamp: 1722838430634,
-						},
-					},
+					Value:     5,
+					Timestamp: 1722838400634,
+				},
+			},
+		},
+		{
+			Labels: []*prompb.Label{
+				{
+					Name:  "__name__",
+					Value: "test_histogram_bucket",
 				},
 				{
-					Labels: []*prompb.Label{
-						{
-							Name:  "__name__",
-							Value: "app1_bucket",
-						},
-						{
-							Name:  "l1",
-							Value: "v1",
-						},
-						{
-							Name:  "l2",
-							Value: "v2",
-						},
-						{
-							Name:  "le",
-							Value: "100",
-						},
-					},
-					Samples: []*prompb.Sample{
-						{
-							Value:     16,
-							Timestamp: 1722838430634,
-						},
-					},
+					Name:  "label1",
+					Value: "value1",
 				},
 				{
-					Labels: []*prompb.Label{
-						{
-							Name:  "__name__",
-							Value: "app1_bucket",
-						},
-						{
-							Name:  "l1",
-							Value: "v1",
-						},
-						{
-							Name:  "l2",
-							Value: "v2",
-						},
-						{
-							Name:  "le",
-							Value: "200",
-						},
-					},
-					Samples: []*prompb.Sample{
-						{
-							Value:     26,
-							Timestamp: 1722838430634,
-						},
-					},
+					Name:  "label2",
+					Value: "value2",
 				},
 				{
-					Labels: []*prompb.Label{
-						{
-							Name:  "__name__",
-							Value: "app1_sum",
-						},
-						{
-							Name:  "l1",
-							Value: "v1",
-						},
-						{
-							Name:  "l2",
-							Value: "v2",
-						},
-					},
-					Samples: []*prompb.Sample{
-						{
-							Value:     3000,
-							Timestamp: 1722838430634,
-						},
-					},
+					Name:  "le",
+					Value: "100",
+				},
+			},
+			Samples: []*prompb.Sample{
+				{
+					Value:     8,
+					Timestamp: 1722838400634,
+				},
+			},
+		},
+		{
+			Labels: []*prompb.Label{
+				{
+					Name:  "__name__",
+					Value: "test_histogram_bucket",
 				},
 				{
-					Labels: []*prompb.Label{
-						{
-							Name:  "__name__",
-							Value: "app1_count",
-						},
-						{
-							Name:  "l1",
-							Value: "v1",
-						},
-						{
-							Name:  "l2",
-							Value: "v2",
-						},
-					},
-					Samples: []*prompb.Sample{
-						{
-							Value:     26,
-							Timestamp: 1722838430634,
-						},
-					},
+					Name:  "label1",
+					Value: "value1",
 				},
 				{
-					Labels: []*prompb.Label{
-						{
-							Name:  "__name__",
-							Value: "app1_bucket",
-						},
-						{
-							Name:  "l1",
-							Value: "v1",
-						},
-						{
-							Name:  "l2",
-							Value: "v2",
-						},
-						{
-							Name:  "le",
-							Value: "+Inf",
-						},
-					},
-					Samples: []*prompb.Sample{
-						{
-							Value:     26,
-							Timestamp: 1722838430634,
-						},
-					},
+					Name:  "label2",
+					Value: "value2",
+				},
+				{
+					Name:  "le",
+					Value: "200",
+				},
+			},
+			Samples: []*prompb.Sample{
+				{
+					Value:     13,
+					Timestamp: 1722838400634,
+				},
+			},
+		},
+		{
+			Labels: []*prompb.Label{
+				{
+					Name:  "__name__",
+					Value: "test_histogram_bucket",
+				},
+				{
+					Name:  "label1",
+					Value: "value1",
+				},
+				{
+					Name:  "label2",
+					Value: "value2",
+				},
+				{
+					Name:  "le",
+					Value: "+Inf",
+				},
+			},
+			Samples: []*prompb.Sample{
+				{
+					Value:     26,
+					Timestamp: 1722838400634,
+				},
+			},
+		},
+		{
+			Labels: []*prompb.Label{
+				{
+					Name:  "__name__",
+					Value: "test_histogram_sum",
+				},
+				{
+					Name:  "label1",
+					Value: "value1",
+				},
+				{
+					Name:  "label2",
+					Value: "value2",
+				},
+			},
+			Samples: []*prompb.Sample{
+				{
+					Value:     1500,
+					Timestamp: 1722838400634,
+				},
+			},
+		},
+		{
+			Labels: []*prompb.Label{
+				{
+					Name:  "__name__",
+					Value: "test_histogram_count",
+				},
+				{
+					Name:  "label1",
+					Value: "value1",
+				},
+				{
+					Name:  "label2",
+					Value: "value2",
+				},
+			},
+			Samples: []*prompb.Sample{
+				{
+					Value:     26,
+					Timestamp: 1722838400634,
+				},
+			},
+		},
+		{
+			Labels: []*prompb.Label{
+				{
+					Name:  "__name__",
+					Value: "test_histogram_bucket",
+				},
+				{
+					Name:  "label1",
+					Value: "value1",
+				},
+				{
+					Name:  "label2",
+					Value: "value3",
+				},
+				{
+					Name:  "le",
+					Value: "50",
+				},
+			},
+			Samples: []*prompb.Sample{
+				{
+					Value:     11,
+					Timestamp: 1722838400634,
+				},
+			},
+		},
+		{
+			Labels: []*prompb.Label{
+				{
+					Name:  "__name__",
+					Value: "test_histogram_bucket",
+				},
+				{
+					Name:  "label1",
+					Value: "value1",
+				},
+				{
+					Name:  "label2",
+					Value: "value3",
+				},
+				{
+					Name:  "le",
+					Value: "100",
+				},
+			},
+			Samples: []*prompb.Sample{
+				{
+					Value:     40,
+					Timestamp: 1722838400634,
+				},
+			},
+		},
+		{
+			Labels: []*prompb.Label{
+				{
+					Name:  "__name__",
+					Value: "test_histogram_bucket",
+				},
+				{
+					Name:  "label1",
+					Value: "value1",
+				},
+				{
+					Name:  "label2",
+					Value: "value3",
+				},
+				{
+					Name:  "le",
+					Value: "200",
+				},
+			},
+			Samples: []*prompb.Sample{
+				{
+					Value:     80,
+					Timestamp: 1722838400634,
+				},
+			},
+		},
+		{
+			Labels: []*prompb.Label{
+				{
+					Name:  "__name__",
+					Value: "test_histogram_bucket",
+				},
+				{
+					Name:  "label1",
+					Value: "value1",
+				},
+				{
+					Name:  "label2",
+					Value: "value3",
+				},
+				{
+					Name:  "le",
+					Value: "+Inf",
+				},
+			},
+			Samples: []*prompb.Sample{
+				{
+					Value:     131,
+					Timestamp: 1722838400634,
+				},
+			},
+		},
+		{
+			Labels: []*prompb.Label{
+				{
+					Name:  "__name__",
+					Value: "test_histogram_sum",
+				},
+				{
+					Name:  "label1",
+					Value: "value1",
+				},
+				{
+					Name:  "label2",
+					Value: "value3",
+				},
+			},
+			Samples: []*prompb.Sample{
+				{
+					Value:     3300,
+					Timestamp: 1722838400634,
+				},
+			},
+		},
+		{
+			Labels: []*prompb.Label{
+				{
+					Name:  "__name__",
+					Value: "test_histogram_count",
+				},
+				{
+					Name:  "label1",
+					Value: "value1",
+				},
+				{
+					Name:  "label2",
+					Value: "value3",
+				},
+			},
+			Samples: []*prompb.Sample{
+				{
+					Value:     131,
+					Timestamp: 1722838400634,
 				},
 			},
 		},
 	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			hg := NewPBHistogram(tt.args.name, tt.args.help, tt.args.labels, tt.args.buckets)
-			hg.Add([]string{"v1", "v2"}, 5, 50)
-			hg.Add([]string{"v1", "v2"}, 8, 100)
-			hg.Add([]string{"v1", "v2"}, 13, 200)
-			hg.AddCount(13)
-			hg.AddSum(1500)
-			got := hg.TimeSeries(tt.args.timestamp)
 
-			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("PBHistogram.TimeSeries() = %v, want %v", got, tt.want)
-			}
+	// sort want and got
+	sort.Slice(got, func(i, j int) bool {
+		return got[i].Labels[0].Value < got[j].Labels[0].Value
+	})
+	sort.Slice(got, func(i, j int) bool {
+		return got[i].Samples[0].Value < got[j].Samples[0].Value
+	})
 
-			for _, ts := range got {
-				TSDebug(ts)
-			}
+	sort.Slice(want, func(i, j int) bool {
+		return want[i].Labels[0].Value < want[j].Labels[0].Value
+	})
+	sort.Slice(want, func(i, j int) bool {
+		return want[i].Samples[0].Value < want[j].Samples[0].Value
+	})
 
-			hg.Add([]string{"v1", "v2"}, 5, 50)
-			hg.Add([]string{"v1", "v2"}, 8, 100)
-			hg.Add([]string{"v1", "v2"}, 13, 200)
-			hg.AddCount(13)
-			hg.AddSum(1500)
-			got2 := hg.TimeSeries(tt.args.timestamp + 30000)
+	// for _, ts := range got {
+	// 	TSDebug(ts)
+	// }
+	// log.Println("=====================================")
+	// for _, ts := range want {
+	// 	TSDebug(ts)
+	// }
 
-			if !reflect.DeepEqual(got2, tt.want2) {
-				t.Errorf("PBHistogram.TimeSeries() = %v, want %v", got, tt.want)
-			}
-			for _, ts := range got2 {
-				TSDebug(ts)
-			}
-		})
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("PBHistogram.TimeSeries() = %v, want %v", got, want)
 	}
 }
 
