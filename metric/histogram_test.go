@@ -17,6 +17,8 @@ func TestPBHistogram_TimeSeries(t *testing.T) {
 	hg.Add([]string{"value1", "value3"}, 11, 50)
 	hg.Add([]string{"value1", "value3"}, 40, 100)
 	hg.Add([]string{"value1", "value3"}, 80, 200)
+	hg.AddCount([]string{"value1", "value2"}, 14)
+	hg.AddCount([]string{"value1", "value3"}, 88)
 	hg.AddSum([]string{"value1", "value2"}, 1500)
 	hg.AddSum([]string{"value1", "value3"}, 3300)
 	got := hg.TimeSeries(1722838400634)
@@ -121,7 +123,7 @@ func TestPBHistogram_TimeSeries(t *testing.T) {
 			},
 			Samples: []*prompb.Sample{
 				{
-					Value:     26,
+					Value:     14,
 					Timestamp: 1722838400634,
 				},
 			},
@@ -165,7 +167,7 @@ func TestPBHistogram_TimeSeries(t *testing.T) {
 			},
 			Samples: []*prompb.Sample{
 				{
-					Value:     26,
+					Value:     14,
 					Timestamp: 1722838400634,
 				},
 			},
@@ -269,7 +271,7 @@ func TestPBHistogram_TimeSeries(t *testing.T) {
 			},
 			Samples: []*prompb.Sample{
 				{
-					Value:     131,
+					Value:     88,
 					Timestamp: 1722838400634,
 				},
 			},
@@ -313,7 +315,7 @@ func TestPBHistogram_TimeSeries(t *testing.T) {
 			},
 			Samples: []*prompb.Sample{
 				{
-					Value:     131,
+					Value:     88,
 					Timestamp: 1722838400634,
 				},
 			},
@@ -335,13 +337,13 @@ func TestPBHistogram_TimeSeries(t *testing.T) {
 		return want[i].Samples[0].Value < want[j].Samples[0].Value
 	})
 
-	// for _, ts := range got {
-	// 	TSDebug(ts)
-	// }
-	// log.Println("=====================================")
-	// for _, ts := range want {
-	// 	TSDebug(ts)
-	// }
+	for _, ts := range got {
+		TSDebug(ts)
+	}
+	log.Println("=====================================")
+	for _, ts := range want {
+		TSDebug(ts)
+	}
 
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("PBHistogram.TimeSeries() = %v, want %v", got, want)

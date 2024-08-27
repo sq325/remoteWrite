@@ -241,15 +241,13 @@ func (hg *PBHistogram) Observe(lvs []string, value float64) {
 // Do not add a bucket with le=+Inf, as the +Inf bucket will be automatically generated in the TimeSeries
 // lvs must not include bucket_label
 func (hg *PBHistogram) Add(lvs []string, value float64, le float64) {
-	hg.count.Add(lvs, value)
-
 	lvs = append(lvs, strconv.FormatFloat(le, 'f', -1, 64)) // add bucket_label
 	hg.vec.Add(lvs, value)
 }
 
-// func (hg *PBHistogram) AddCount(lvs []string, c int) {
-// 	hg.count.Add(lvs, float64(c))
-// }
+func (hg *PBHistogram) AddCount(lvs []string, c int) {
+	hg.count.Add(lvs, float64(c))
+}
 
 func (hg *PBHistogram) AddSum(lvs []string, s float64) {
 	hg.sum.Add(lvs, s)
