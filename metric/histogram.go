@@ -245,7 +245,7 @@ func (hg *PBHistogram) Add(lvs []string, value float64, le float64) {
 	hg.vec.Add(lvs, value)
 }
 
-func (hg *PBHistogram) AddCount(lvs []string, c int) {
+func (hg *PBHistogram) AddCount(lvs []string, c float64) {
 	hg.count.Add(lvs, float64(c))
 }
 
