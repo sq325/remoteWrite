@@ -1,7 +1,7 @@
 package metric
 
 import (
-	"log"
+	"log/slog"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sq325/remoteWrite/prompb"
@@ -45,7 +45,7 @@ func (c *PBCounter) TimeSeries(timestamp int64) []*prompb.TimeSeries {
 	// A lvs generate a TimeSeries
 	for _, lvs := range c.vec.LabelValues() {
 		if len(lvs) != len(c.vec.Labels()) {
-			log.Println("labels and labelvalues not match")
+			slog.Error("labels and labelvalues not match", "labels", c.vec.Labels(), "labelvalues", lvs)
 			continue
 		}
 		m, err := c.vec.GetMetricWithLabelValues(lvs...)
@@ -54,7 +54,7 @@ func (c *PBCounter) TimeSeries(timestamp int64) []*prompb.TimeSeries {
 		}
 		v, err := GetMetricValue(m)
 		if err != nil {
-			log.Println(err)
+			slog.Error("GetMetricValue Failed", "err", err)
 		}
 
 		labels := make([]*prompb.Label, 0, len(c.vec.Labels())+1) // +1 for __name__

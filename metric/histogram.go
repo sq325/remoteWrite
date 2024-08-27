@@ -1,7 +1,7 @@
 package metric
 
 import (
-	"log"
+	"log/slog"
 	"math"
 	"slices"
 	"strconv"
@@ -131,7 +131,7 @@ func (hg *PBHistogram) TimeSeries(timestamp int64) []*prompb.TimeSeries {
 		tsList := make([]*prompb.TimeSeries, 0, len(vec.LabelValues()))
 		for _, lvs := range vec.LabelValues() {
 			if len(lvs) != len(vec.Labels()) {
-				log.Println("labels and labelvalues not match")
+				slog.Error("labels and labelvalues not match", "labels", vec.Labels(), "labelvalues", lvs)
 				continue
 			}
 			m, err := vec.GetMetricWithLabelValues(lvs...)
@@ -140,7 +140,7 @@ func (hg *PBHistogram) TimeSeries(timestamp int64) []*prompb.TimeSeries {
 			}
 			v, err := GetMetricValue(m)
 			if err != nil {
-				log.Println(err)
+				slog.Error("GetMetricValue failed", "err", err)
 			}
 
 			pblabels := prompbLabels(vec.Name(), vec.Labels(), lvs)
@@ -198,7 +198,7 @@ func (hg *PBHistogram) TimeSeries(timestamp int64) []*prompb.TimeSeries {
 // prompbLabels generates []*prompb.Label based on lv and lvs, and adds the name label
 func prompbLabels(name string, lv, lvs []string) []*prompb.Label {
 	if len(lv) != len(lvs) {
-		log.Println("labels and labelvalues not match")
+		slog.Error("labels and labelvalues not match", "labels", lv, "labelvalues", lvs)
 		return nil
 	}
 
@@ -226,7 +226,7 @@ func prompbLabels(name string, lv, lvs []string) []*prompb.Label {
 func (hg *PBHistogram) Observe(lvs []string, value float64) {
 	b := findBucket(hg.buckets, value)
 	if b <= 0 {
-		log.Println("no bucket for value:", value)
+		slog.Error("findBucket failed, no bucket found with the value", "value", value)
 		return
 	}
 

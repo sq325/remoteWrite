@@ -3,7 +3,7 @@ package client
 import (
 	"bytes"
 	"fmt"
-	"log"
+	"log/slog"
 	"net"
 	"net/http"
 	"time"
@@ -105,7 +105,7 @@ func (c *Client) Write(series []*prompb.TimeSeries) error {
 
 	bys, err := proto.Marshal(req)
 	if err != nil {
-		log.Printf("failed to marshal WriteRequest: %v", err)
+		slog.Error("failed to marshal WriteRequest", "err", err, "req", req, "series", series)
 		return err
 	}
 	if err := c.write(snappy.Encode(nil, bys)); err != nil {
@@ -118,7 +118,6 @@ func (c *Client) Write(series []*prompb.TimeSeries) error {
 func (c *Client) write(bys []byte) error {
 	req, err := http.NewRequest("POST", c.url, bytes.NewReader(bys))
 	if err != nil {
-		log.Printf("failed to create request: %v", err)
 		return err
 	}
 	req.Header.Add("Content-Encoding", "snappy")
@@ -128,15 +127,13 @@ func (c *Client) write(bys []byte) error {
 
 	resp, err := c.client.Do(req)
 	if err != nil {
-		log.Println("push data with remote write request got error:", err, "response body:", string(bys))
 		return err
 	}
 	// meter
 	c.RequestCounter.WithLabelValues(c.url).Inc()
 	c.RequestBytesCounter.WithLabelValues(c.url).Add(float64(len(bys)))
 	if resp.StatusCode >= 400 {
-		err = fmt.Errorf("push data with remote write request got status code: %v, response body: %s", resp.StatusCode, string(bys))
-		return err
+		return fmt.Errorf("push data with remote write request got status code: %v, response body: %s", resp.StatusCode, string(bys))
 	}
 
 	return nil
